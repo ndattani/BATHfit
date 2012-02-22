@@ -17,7 +17,7 @@ hbar=4.135667516*10^(-15); % eV*seconds
 hbar=4.135667516*10^(-15)*fs; % eV*femtoseconds
 %% 3 Physical parameters
 beta=1/(kb*T); % in Kelvins/eV
-spectralDensityParameters=flipud(struct2array(load(filenameContainingSpectralDensityParameters))); % filename is different from variable name because matlab doesn't let us begin a variable name with a number .  The flipud is because the high frequency modes (the ones we don't want) seem to be given FIRST !
+spectralDensityParameters=flipud(cell2mat(struct2cell(load(filenameContainingSpectralDensityParameters)))); % filename is different from variable name because matlab doesn't let us begin a variable name with a number .  The flipud is because the high frequency modes (the ones we don't want) seem to be given FIRST ! - cell2mat(struct2cell( can be replaced by struct2array, but apparently doesn't work universally
 eta=spectralDensityParameters(:,1)*1e-5; % in eV^2
 omegaTilde=2*pi./spectralDensityParameters(:,2); % in fs
 gamma=1./spectralDensityParameters(:,3); % in fs
@@ -28,7 +28,7 @@ for ii=1:length(w);
 J(ii,:)=(2/(pi*hbar))*tanh(beta*hbar*w(ii)/2).*cumsum((eta.*gamma./(2*(gamma.^2+(w(ii)-omegaTilde).^2))+(eta.*gamma./(2*(gamma.^2+(w(ii)+omegaTilde).^2))))); % Equation 4 of 2011 Olbrich et al. JPCL ,2, 1771-1776. 
 end
 
-plot(hbar*w,J(:,length(eta)),'b','LineWidth',2);
+figure(100);plot(hbar*w,J(:,length(eta)),'b','LineWidth',2); % High figure number so that the figure numbers below can correspond to the number of exponentials, without drawing over this figure.
 %% 5 Labels
 title('BChl 1, convert $\omega$ from fs$^{-1}$ to cm for correct units ?','FontSize',32,'Interpreter','latex')
 xlabel('$\hbar\omega$ [eV]','FontSize',32,'Interpreter','latex');ylabel('$J(\omega)$ [eV]','FontSize',32,'Interpreter','latex')
@@ -48,10 +48,10 @@ Omega(2:2:end)=conj(1i*omegaTilde(1:numberOfLorentzianTermsInSpectralDensity)-ga
 for ii=1:length(t)
 alpha(ii)=complex(sum(p.*exp(Omega*t(ii))),0);
 end; alpha=alpha.'; %alpha needs to be a row for the least-squares fitting program
-figure(2);plot(t,alpha);
+figure(101);plot(t,alpha); % High figure number so that the figure numbers below can correspond to the number of exponentials, without drawing over this figure.
 %% 8 non-linear Least Squares Fit
 clearvars -except alpha tMesh finalTime t J w eta omegaTilde gamma p Omega  numberOfInitialTrialExponentialTerms maxNumberOfFittedExponentialTerms % clearing these variables at the beginning of the cell allows us to run the cell many times with different fitting characteristics. It may be appropriate to keep more of the useful variables that don't affect the fit.
-weights=ones(size(alpha));weights(find(t==400):find(t==401))=2.5;weights([find(t==10):find(t==40) find(t==30):find(t==400)])=1.5; % If all weights are 1, we have a non-weighted least-squares fit. 
+weights=ones(size(alpha));weights(find(t==400):find(t==600))=2.5;weights([find(t==10):find(t==40) find(t==30):find(t==400)])=1.5; % If all weights are 1, we have a non-weighted least-squares fit. 
 %options=optimset('Display','iter','TolFun',1e-20,'Algorithm','levenberg-marquardt','TolX',1e-18,'DiffMinChange',1e-7,'FinDiffType','central','MaxFunEvals',4000);
 options=optimset('Display','iter','TolFun',1e-20,'Algorithm',[],'TolX',1e-18,'DiffMinChange',1e-7,'FinDiffType','central','MaxFunEvals',50000,'MaxIter',1000);
 
