@@ -1,5 +1,5 @@
 %% THIS CODE IS PROTECTED BY COPYRIGHT LAW.
-%% The owners of this code are Nike S. Dattani and David Mark Wilkins
+%% The owners of this code are Nike S. Dattani and David M. Wilkins
 %% The copyright is currently owned by Nike S. Dattani.
 
 %% NO PART OF THIS CODE IS TO BE MODIFIED OUTSIDE OF GIT. LEGAL CONSEQUENCES WILL APPLY 
@@ -13,8 +13,8 @@ kb=1.3806504*10^(-23); % Joules / Kelvin
 kb=kb*joules2electronVolts; % eV / Kelvin
 
 hbar=1.054571628*10^(-34); % Joules*seconds
-hbar=4.135667516*10^(-15); % eV*seconds
-hbar=4.135667516*10^(-15)*fs; % eV*femtoseconds
+hbar=6.582119087689656*10^(-16); % eV*seconds
+hbar=0.6582119087689656; % eV*femtoseconds
 %% 3 Physical parameters
 beta=1/(kb*T); % in Kelvins/eV
 spectralDensityParameters=flipud(cell2mat(struct2cell(load(filenameContainingSpectralDensityParameters)))); % filename is different from variable name because matlab doesn't let us begin a variable name with a number .  The flipud is because the high frequency modes (the ones we don't want) seem to be given FIRST ! - cell2mat(struct2cell( can be replaced by struct2array, but apparently doesn't work universally
@@ -22,19 +22,23 @@ eta=spectralDensityParameters(:,1)*1e-5; % in eV^2
 omegaTilde=2*pi./spectralDensityParameters(:,2); % in fs
 gamma=1./spectralDensityParameters(:,3); % in fs
 %% 4 Calculate the spectral density
-w=0:0.001:2.5;w=w.'/hbar;J=zeros(length(w),length(eta)); % in fs-1
+w=0:0.001:0.25;w=w.';J=zeros(length(w),length(eta)); % in eV
 
 for ii=1:length(w);
-J(ii,:)=(2/(pi*hbar))*tanh(beta*hbar*w(ii)/2).*cumsum((eta.*gamma./(2*(gamma.^2+(w(ii)-omegaTilde).^2))+(eta.*gamma./(2*(gamma.^2+(w(ii)+omegaTilde).^2))))); % Equation 4 of 2011 Olbrich et al. JPCL ,2, 1771-1776. 
+J(ii,:)=(2/pi)*tanh(0.5*beta*w(ii)).*cumsum((eta.*(gamma*hbar)./(2*((gamma*hbar).^2+(w(ii)-(omegaTilde*hbar)).^2))+(eta.*(gamma*hbar)./(2*((gamma*hbar).^2+(w(ii)+(omegaTilde*hbar)).^2))))); % Equation 4 of 2011 Olbrich et al. JPCL ,2, 1771-1776. 
 end
+% The factor of hbar ensures that all frequencies are in eV.
+% In order to allow the user to specify the units for the plot axes, the
+% necessary scaling factors can then be applied to w and J(w) in the plot
+% command.
 
-figure(100);plot(hbar*w,J(:,length(eta)),'b','LineWidth',2); % High figure number so that the figure numbers below can correspond to the number of exponentials, without drawing over this figure.
+figure(100);plot(w,J(:,length(eta)),'b','LineWidth',2); % High figure number so that the figure numbers below can correspond to the number of exponentials, without drawing over this figure.
 %% 5 Labels
-title('BChl 1, convert $\omega$ from fs$^{-1}$ to cm for correct units ?','FontSize',32,'Interpreter','latex')
+title('BChl 1','FontSize',32,'Interpreter','latex')
 xlabel('$\hbar\omega$ [eV]','FontSize',32,'Interpreter','latex');ylabel('$J(\omega)$ [eV]','FontSize',32,'Interpreter','latex')
 %% 6 Plot spectral density with varying number of Lorentzian terms
 jetVariable=jet;jetVariable=jetVariable(find(mod(1:length(jetVariable),2)),:);set(gca,'ColorOrder',jetVariable(find(mod(1:length(jetVariable),2)),:));hold('all'); % varycolor.m on the FEX is the ideal way to plot many lines, each a different color. Instead we've used jet(find(mod(1:length(jet),2)),:), which reduces the number of colors in jet to 32 by removing every other row.
-plot(hbar*w,J,'LineWidth',2);
+plot(w,J,'LineWidth',2);
 legendHandle=legend(arrayfun(@(i) num2str(i), 1:length(eta), 'Uniform', 0));
 set(get(legendHandle,'title'),'string','Number of terms');
 set(legendHandle,'Interpreter','latex','FontSize',16,'LineWidth',3)
@@ -45,10 +49,32 @@ p=expand(eta(1:numberOfLorentzianTermsInSpectralDensity)/2,[2,1]);Omega=p; % ini
 Omega(1:2:end)=1i*omegaTilde(1:numberOfLorentzianTermsInSpectralDensity)-gamma(1:numberOfLorentzianTermsInSpectralDensity);
 Omega(2:2:end)=conj(1i*omegaTilde(1:numberOfLorentzianTermsInSpectralDensity)-gamma(1:numberOfLorentzianTermsInSpectralDensity));
 
+% Imaginary part:
+
+padeParameters = cell2mat(struct2cell(load('pade.mat')));
+kappa = padeParameters(:,1); nu = padeParameters(:,2)/hbar;
+
+% Frequencies:
+bigOmega(1:length(eta)) = -gamma + (i * omegaTilde);
+bigOmega(length(eta)+1:2*length(eta)) = -gamma - (i * omegaTilde);
+bigOmega(2*length(eta)+1:2*length(eta)+length(kappa)) = -nu;
+% Prefactors:
+pf = zeros(1,2*length(eta)+length(kappa));
+for ii=1:length(eta)
+    pf(ii) = (2.*eta(ii)*bigOmega(ii)/(beta*hbar)) * sum(kappa./(nu.^2 - bigOmega(ii).^2));
+    pf(ii+length(eta)) = (2.*eta(ii)*bigOmega(ii+length(eta))/(beta*hbar)) * sum(kappa./(nu.^2 - bigOmega(ii+length(eta)).^2));
+end;
+for ii=2*length(eta)+1:2*length(eta)+length(kappa)
+    for jj=1:length(eta)
+        pf(ii) = pf(ii) + (gamma(jj)*eta(jj)*(bigOmega(jj)*bigOmega(jj+length(eta))-nu(ii-2*length(eta))^2))/((nu(ii-2*length(eta))^2-bigOmega(jj)^2)*(nu(ii-2*length(eta))^2-bigOmega(jj+length(eta))^2));
+    end;
+    pf(ii) = pf(ii) * -4.*kappa(ii-2*length(eta))/(beta*hbar);
+end;
+
 for ii=1:length(t)
-alpha(ii)=complex(sum(p.*exp(Omega*t(ii))),0);
+alpha(ii)=complex(sum(p.*exp(Omega*t(ii))),real(sum(pf.*exp(bigOmega*t(ii)))));
 end; alpha=alpha.'; %alpha needs to be a row for the least-squares fitting program
-figure(101);plot(t,alpha); % High figure number so that the figure numbers below can correspond to the number of exponentials, without drawing over this figure.
+figure(101);plot(t,real(alpha),t,imag(alpha)); % High figure number so that the figure numbers below can correspond to the number of exponentials, without drawing over this figure.
 %% 8 non-linear Least Squares Fit
 clearvars -except alpha tMesh finalTime t J w eta omegaTilde gamma p Omega  numberOfInitialTrialExponentialTerms maxNumberOfFittedExponentialTerms % clearing these variables at the beginning of the cell allows us to run the cell many times with different fitting characteristics. It may be appropriate to keep more of the useful variables that don't affect the fit.
 weights=ones(size(alpha));weights(find(t==400):find(t==600))=2.5;weights([find(t==10):find(t==40) find(t==30):find(t==400)])=1.5; % If all weights are 1, we have a non-weighted least-squares fit. 
