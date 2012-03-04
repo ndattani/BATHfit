@@ -3,7 +3,7 @@
 %% The copyright is currently owned by Nike S. Dattani.
 
 %% NO PART OF THIS CODE IS TO BE MODIFIED OUTSIDE OF GIT. LEGAL CONSEQUENCES WILL APPLY 
-function leastSquaresFitToBathResponseFunction(filenameContainingSpectralDensityParameters,T,numberOfInitialTrialExponentialTerms,maxNumberOfFittedExponentialTerms)
+function fittedParameters=leastSquaresFitToBathResponseFunction(filenameContainingSpectralDensityParameters,T,numberOfInitialTrialExponentialTerms,maxNumberOfFittedExponentialTerms)
 % '2011Olbrich_JPCL_2_1771_tableS1_BChl1.mat' -> input file, given over here since matlab's ls command isn't giving the full filename ! 
 %% 1 Conversion factors
 joules2electronVolts=6.24150974*10^18;
@@ -13,8 +13,8 @@ kb=1.3806504*10^(-23); % Joules / Kelvin
 kb=kb*joules2electronVolts; % eV / Kelvin
 
 hbar=1.054571628*10^(-34); % Joules*seconds
-hbar=6.582119087689656*10^(-16); % eV*seconds
-hbar=0.6582119087689656; % eV*femtoseconds
+hbar=hbar*joules2electronVolts; % eV*seconds
+hbar=hbar*fs; % eV*femtoseconds
 %% 3 Physical parameters
 beta=1/(kb*T); % in Kelvins/eV
 spectralDensityParameters=flipud(cell2mat(struct2cell(load(filenameContainingSpectralDensityParameters)))); % filename is different from variable name because matlab doesn't let us begin a variable name with a number .  The flipud is because the high frequency modes (the ones we don't want) seem to be given FIRST ! - cell2mat(struct2cell( can be replaced by struct2array, but apparently doesn't work universally
@@ -27,10 +27,7 @@ w=0:0.001:0.25;w=w.';J=zeros(length(w),length(eta)); % in eV
 for ii=1:length(w);
 J(ii,:)=(2/pi)*tanh(0.5*beta*w(ii)).*cumsum((eta.*(gamma*hbar)./(2*((gamma*hbar).^2+(w(ii)-(omegaTilde*hbar)).^2))+(eta.*(gamma*hbar)./(2*((gamma*hbar).^2+(w(ii)+(omegaTilde*hbar)).^2))))); % Equation 4 of 2011 Olbrich et al. JPCL ,2, 1771-1776. 
 end
-% The factor of hbar ensures that all frequencies are in eV.
-% In order to allow the user to specify the units for the plot axes, the
-% necessary scaling factors can then be applied to w and J(w) in the plot
-% command.
+% The factor of hbar ensures that all frequencies are in eV. In order to allow the user to specify the units for the plot axes, the necessary scaling factors can then be applied to w and J(w) in the plot command.
 
 figure(100);plot(w,J(:,length(eta)),'b','LineWidth',2); % High figure number so that the figure numbers below can correspond to the number of exponentials, without drawing over this figure.
 %% 5 Labels
@@ -108,4 +105,16 @@ axis([0,finalTime,min([real(alpha) ; imag(alpha)]),max([real(alpha) ; imag(alpha
 %% 8.5 Plot the original points that were fitted to. Do this at the end so that the points are seen.
 plot(t,real(alpha),'.');plot(t,imag(alpha),'.') ;hold('off')
 end % loop over number of expoenntial terms fitted
-end % function
+end % main function
+
+function realAndImaginaryPartsOfErrorInOneColumnVector = fitComplex(fittedParametersInOneColumnVector,X,Y,weights)
+global beta; 
+n=length(fittedParametersInOneColumnVector);
+fittedParameters=complex(fittedParametersInOneColumnVector(1:n/2),fittedParametersInOneColumnVector(n/2+1:n)); % Remember took the complex trial parameters and made a column vector composed half of the real parts of the trial parameters, and half of the imag parts of the trial parameters. I think this is needed because lsqnonlin treats the real and imaginary parts as separate fitting parameters, and all fitting parameters need to be in a row.
+%% Evaluate the error (difference between the fitted function and the desired function to which we're fitting)
+error= exp(repmat(fittedParameters((n/4)+1:n/2),length(X),1).*repmat(X.',1,(n/4)))*(fittedParameters(1:n/4).')- Y; %[exp(omega1)AtTimeT1 exp(omega2)AtTimeT1 ... ; exp(omega1)AtTimeT2 exp(omega2)AtTimeT2]*[p1 ; p2 ; ..]
+%error = (1/pi)*(1-exp(-beta*X.')).*real((1./(repmat(-1i*fittedParameters((n/4)+1:n/2)*3.33563759345165*10^-11,length(X),1)+repmat(X.',1,(n/4))))*(1i*fittedParameters(1:n/4).'))- Y;
+%%
+error=error.*weights;
+realAndImaginaryPartsOfErrorInOneColumnVector=[real(error);imag(error)]; % Convert the answer back into a column vector such that the first half is the real part, and the second half is the imaginary part. 
+end % function fitcomplex
