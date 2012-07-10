@@ -47,7 +47,6 @@ Omega(1:2:end)=1i*omegaTilde(1:numberOfLorentzianTermsInSpectralDensity)-gamma(1
 Omega(2:2:end)=conj(1i*omegaTilde(1:numberOfLorentzianTermsInSpectralDensity)-gamma(1:numberOfLorentzianTermsInSpectralDensity));
 
 % Imaginary part:
-
 padeParameters = cell2mat(struct2cell(load('pade.mat')));
 kappa = padeParameters(:,1); nu = padeParameters(:,2)/hbar;
 
