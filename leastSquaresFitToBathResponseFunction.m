@@ -3,7 +3,7 @@
 %% The copyright is currently owned by Nike S. Dattani.
 
 %% NO PART OF THIS CODE IS TO BE MODIFIED OUTSIDE OF GIT. LEGAL CONSEQUENCES WILL APPLY 
-function fittedParametersInSIunits=leastSquaresFitToBathResponseFunction(t,T,w,J,numberOfInitialTrialExponentialTerms,maxNumberOfFittedExponentialTerms,figureTitle)
+function [fittedParametersInSIunits msd]=leastSquaresFitToBathResponseFunction(t,T,w,J,numberOfInitialTrialExponentialTerms,maxNumberOfFittedExponentialTerms,figureTitle,outputFilename)
 %% 1 Fundamental constants
 kb=1.3806504*10^(-23); % Joules / Kelvin
 hbar=1.054571628*10^(-34); % Joules*seconds
@@ -23,6 +23,7 @@ weights=ones(size(scaledAlpha));%weights(find(t==400):find(t==600))=2.5;weights(
 %options=optimset('Display','iter','TolFun',1e-20,'Algorithm','levenberg-marquardt','TolX',1e-18,'DiffMinChange',1e-7,'FinDiffType','central','MaxFunEvals',4000);
 options=optimset('Display','iter','TolFun',1e-20,'Algorithm',[],'TolX',1e-18,'DiffMinChange',1e-7,'FinDiffType','central','MaxFunEvals',50000,'MaxIter',1000);
 
+fittedParametersInSIunits=cell(maxNumberOfFittedExponentialTerms-numberOfInitialTrialExponentialTerms,1);msd=fittedParametersInSIunits;
 for ii=numberOfInitialTrialExponentialTerms:maxNumberOfFittedExponentialTerms
 if ii>numberOfInitialTrialExponentialTerms;trialParameters=[fittedParametersScaled(1:length(fittedParametersScaled)/2) randn*(trialParameters(1)) fittedParametersScaled(length(fittedParametersScaled)/2+1:length(trialParameters)) randn*(trialParameters(end))];end  
 % trialParameters=rand*fittedParameters; % sometimes the parameters need a bit of a nudge to escape a local minimum ?
@@ -30,14 +31,15 @@ if ii>numberOfInitialTrialExponentialTerms;trialParameters=[fittedParametersScal
 x0=[real(trialParameters) imag(trialParameters)]; % Convert initial conditions to a real part, then Concatenate the imaginary part to the real part. I think this is needed because lsqnonlin treats the real and imaginary parts as separate fitting parameters, and all fitting parameters need to be in a row.
 %% 5.1 Main fitting computation !
 %x=lsqnonlin(@(x)fit2(x,t,alpha),x0,[],[],options); %t is a row and alpha's a column
-x=lsqnonlin(@(x)fitComplex(x,scaledTime,scaledAlpha,weights),x0,[],[],options); %t is a row and alpha's a column
+[x,msd{ii}]=lsqnonlin(@(x)fitComplex(x,scaledTime,scaledAlpha,weights),x0,[],[],options); %t is a row and alpha's a column
 fittedParametersScaled = complex(x(1:length(trialParameters)),x(length(trialParameters)+1:2*length(trialParameters))); % Convert answer to complex. x and x0 are rows
 fittedParametersScaled(1:length(fittedParametersScaled)/2)=fittedParametersScaled(1:length(fittedParametersScaled)/2)*max(real(alpha)); %scale the p's so that the ordinate values of alpha are back in SI units
-fittedParametersInSIunits=fittedParametersScaled;
-fittedParametersInSIunits(length(fittedParametersScaled)/2+1:end)=fittedParametersScaled(length(fittedParametersScaled)/2+1:end)/max(t); % scale the Omega's so that the abscissa values of alpha are back in SI units
-alphaFitted=exp(repmat(fittedParametersInSIunits(length(fittedParametersInSIunits)/2+1:length(fittedParametersInSIunits)),length(t),1).*repmat(t.',1,length(fittedParametersInSIunits)/2))*fittedParametersInSIunits(1:length(fittedParametersInSIunits)/2).';
+fittedParametersInSIunits{ii}=fittedParametersScaled;
+fittedParametersInSIunits{ii}(length(fittedParametersScaled)/2+1:end)=fittedParametersScaled(length(fittedParametersScaled)/2+1:end)/max(t); % scale the Omega's so that the abscissa values of alpha are back in SI units
+alphaFitted=exp(repmat(fittedParametersInSIunits{ii}(length(fittedParametersInSIunits{ii})/2+1:length(fittedParametersInSIunits{ii})),length(t),1).*repmat(t.',1,length(fittedParametersInSIunits{ii})/2))*fittedParametersInSIunits{ii}(1:length(fittedParametersInSIunits{ii})/2).';
 %% 5.2 Plot the fitted result for alpha (before plotting the original points that were being fitted to, so that originals aren't covered)
-figure(ii);subplot(2,1,1);hold('on');title(figureTitle,'FontSize',32,'Interpreter','latex'); % would be nice if we could make a title for the whole thing though, not just the subplot
+figure(ii);subplot(2,1,1);hold('on');
+title(strcat(figureTitle,', K=',num2str(ii)),'FontSize',32,'Interpreter','latex'); % would be nice if we could make a title for the whole thing though, not just the subplot
 plotHandle(1)=plot(t,real(alphaFitted),'r','LineWidth',4);plot(t,imag(alphaFitted),'r','LineWidth',4);
 %% 5.3 Plot the results on a finer mesh (if points are sparse). Why not always do this ? Because the points in between the fitted points weren't constrained by the fit and might not match well.
 % % splineMeshSize=tMesh/1000;splineMesh=0:splineMeshSize:finalTime;% 
@@ -53,20 +55,55 @@ axis('tight');box('on');
 set(gca,'XMinorTick','on','YMinorTick','on','LineWidth',3,'FontSize',16);
 %yLabelHandle=get(gca,'YLabel');set(yLabelHandle,'Position',get(yLabelHandle,'Position') - [0.000125 0 0]);
 %xLabelHandle=get(gca,'XLabel');set(xLabelHandle,'Position',get(xLabelHandle,'Position') - [0 0.000125 0]);
-ylabel('$\alpha(t)$ [Joules $\cdot$ seconds]','FontSize',24,'Interpreter','latex')
-xlabel('Time [seconds]','FontSize',32,'Interpreter','latex')
+ylabel('$\alpha(t)$ [Joules $\cdot$ seconds]','FontSize',20,'Interpreter','latex')
+xlabel('Time [seconds]','FontSize',24,'Interpreter','latex')
 legendHandle=legend(plotHandle,{'$\alpha(t)$ fitted' '$\alpha(t)$ original'});set(legendHandle,'Interpreter','latex','FontSize',16,'LineWidth',3,'Position',[0.747672758188061 0.753355153875044 0.134706814580032 0.139318885448916])
 %% 5.7 Plot J(w) corresponding to fitted alpha(t) and original J(w)
 subplot(2,1,2);hold('on');
-Jfitted=(1/pi)*(1-exp(-beta*hbar*w.')).*real(sum(bsxfun(@rdivide,1i*fittedParametersInSIunits(1:length(fittedParametersInSIunits)/2).',bsxfun(@minus,w.',1i*fittedParametersInSIunits(length(fittedParametersInSIunits)/2+1:length(fittedParametersInSIunits)).'))));
+Jfitted=(1/pi)*(1-exp(-beta*hbar*w.')).*real(sum(bsxfun(@rdivide,1i*fittedParametersInSIunits{ii}(1:length(fittedParametersInSIunits{ii})/2).',bsxfun(@minus,w.',1i*fittedParametersInSIunits{ii}(length(fittedParametersInSIunits{ii})/2+1:length(fittedParametersInSIunits{ii})).'))));
 plotHandle2(1)=plot(w,Jfitted,'r','LineWidth',4); 
 plotHandle2(2)=plot(w,J,'b','LineWidth',4); 
 axis('tight');box('on');
 set(gca,'XMinorTick','on','YMinorTick','on','LineWidth',3,'FontSize',16);
-ylabel('$J(\omega)$ [Joules]','FontSize',32,'Interpreter','latex')
-xlabel('$\omega$ [seconds$^{-1}$]','FontSize',32,'Interpreter','latex')
+ylabel('$J(\omega)$ [Joules]','FontSize',24,'Interpreter','latex')
+xlabel('$\omega$ [seconds$^{-1}$]','FontSize',24,'Interpreter','latex')
 legendHandle2=legend(plotHandle2,{'$J(\omega)$ fitted' '$J(\omega)$ original'});set(legendHandle2,'Interpreter','latex','FontSize',16,'LineWidth',3,'Location','NorthEast')
 end % loop over number of expoenntial terms fitted
+
+%% 6 Create Output File
+
+structureArrayForInformationAboutThisFile=dir(mfilename); % for some reason mfilename is empty when I tested it last, see if it's empty this time
+
+fid=fopen(outputFilename,'w');
+fprintf(fid,'%s\n','=======================================================================');
+fprintf(fid,'%s\n','========================== BATHFIT 1 Output ===========================');
+fprintf(fid,'%s\n','=======================================================================');
+fprintf(fid,'%s\n','==== Authors: Nike S. Dattani and David M. Wilkins  ===================');
+fprintf(fid,'%s\n','==== Email:   dattani.nike@gmail.com , david.wilkins@chem.ox.ac.uk ====');
+fprintf(fid,'%s\n',['==== Last modified at: ' ''   datestr(structureArrayForInformationAboutThisFile.datenum,'HH:MM:SS dd-mmm-yyyy') '========================']); % won't work if mfilename (see above) is empty
+fprintf(fid,'%s\n',['==== Output generated at: ' datestr(now,'HH:MM:SS dd-mmm-yyyy') ' ========================']);
+fprintf(fid,'%s\n\n\n','=======================================================================');
+
+for ii=numberOfInitialTrialExponentialTerms:maxNumberOfFittedExponentialTerms;  
+    fprintf(fid,'%s\n','=======================================================================');
+    fprintf(fid,'%s\n',strcat('Number of exponential terms: K=',num2str(ii)));
+    fprintf(fid,'%s\n',strcat('Quality of scaled fit: Mean square deviation (MSD)=',num2str(msd{ii},'%6.6f')));
+    fprintf(fid,'%s\n','=======================================================================');
+    fprintf(fid,'%s\n','PREFACTORS (P) [in Joules/second]:');
+    fprintf(fid,'%s\n','=======================================================================');
+     
+    p=fittedParametersInSIunits{ii}(1:length(fittedParametersInSIunits{ii})/2).';
+    Omega=fittedParametersInSIunits{ii}(length(fittedParametersInSIunits{ii})/2+1:length(fittedParametersInSIunits{ii})).';
+    
+    fprintf(fid, '(%1.16e,%1.16e)\n', [real(p(:)), imag(p(:))].' );
+    
+    fprintf(fid,'%s\n','=======================================================================');
+    fprintf(fid,'%s\n','Frequencies (Omega) [in 1/seconds]:');
+    fprintf(fid,'%s\n','=======================================================================');
+    
+    fprintf(fid, '(%1.16e,%1.16e)\n', [real(Omega(:)), imag(Omega(:))].' );
+    fprintf(fid,'%s\n\n','=======================================================================');
+end
 
 function realAndImaginaryPartsOfErrorInOneColumnVector = fitComplex(fittedParametersInOneColumnVector,X,Y,weights)
 n=length(fittedParametersInOneColumnVector);
